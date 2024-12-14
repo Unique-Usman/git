@@ -12,7 +12,7 @@ const char *git_user_agent_sanitized(void);
   Return -1 and put an error message into 'buf' in case of uname()
   error. Return 0 and put uname info into 'buf' otherwise.
 */
-int get_uname_info(struct strbuf *buf);
+int get_uname_info(struct strbuf *buf, int is_bug_report);
 
 const char *os_version(void);
 const char *os_version_sanitized(void);

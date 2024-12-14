@@ -15,6 +15,7 @@
 
 static int advertise_sid = -1;
 static int advertise_object_info = -1;
+static int advertise_os_version = -1;
 static int client_hash_algo = GIT_HASH_SHA1;
 
 static int always_advertise(struct repository *r UNUSED,
@@ -31,9 +32,15 @@ static int agent_advertise(struct repository *r UNUSED,
 	return 1;
 }
 
-static int os_version_advertise(struct repository *r UNUSED,
+static int os_version_advertise(struct repository *r,
 			   struct strbuf *value)
 {
+	if (advertise_os_version == -1 &&
+	    repo_config_get_bool(r, "transfer.advertiseosversion",
+				 &advertise_os_version))
+		advertise_os_version = 1;
+	if (!advertise_os_version)
+		return 0;
 	if (value)
 		strbuf_addstr(value, os_version_sanitized());
 	return 1;

@@ -7,7 +7,7 @@ export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 
 . ./test-lib.sh
 
-test_expect_success 'test capability advertisement' '
+test_expect_success !MINGW,!CYGWIN,!WINDOWS 'test capability advertisement' '
 	test_oid_cache <<-EOF &&
 	wrong_algo sha1:sha256
 	wrong_algo sha256:sha1
@@ -17,7 +17,7 @@ test_expect_success 'test capability advertisement' '
 	cat >expect.base <<-EOF &&
 	version 2
 	agent=git/$(git version | cut -d" " -f3)
-	os-version=$(uname -srvm | tr -d "\n" | tr "[\001-\040][\177-\377]" ".")
+	os-version=$(uname -s | tr -d "\n" | tr "[\001-\040][\177-\377]" ".")
 	ls-refs=unborn
 	fetch=shallow wait-for-done
 	server-option

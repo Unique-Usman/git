@@ -23,6 +23,7 @@
 #include "alias.h"
 #include "bundle-uri.h"
 
+static int transfer_os_version = -1;
 static char *server_capabilities_v1;
 static struct strvec server_capabilities_v2 = STRVEC_INIT;
 static const char *next_server_feature_value(const char *feature, size_t *len, size_t *offset);
@@ -491,7 +492,11 @@ static void send_capabilities(int fd_out, struct packet_reader *reader)
 	if (server_supports_v2("agent"))
 		packet_write_fmt(fd_out, "agent=%s", git_user_agent_sanitized());
 
-	if (server_supports_v2("os-version"))
+	if (git_config_get_bool("transfer.advertiseosversion", &transfer_os_version)) {
+		/* enabled by default */
+		transfer_os_version = 1;
+	}
+	if (server_supports_v2("os-version") && transfer_os_version)
 		packet_write_fmt(fd_out, "os-version=%s", os_version_sanitized());
 
 	if (server_feature_v2("object-format", &hash_name)) {
