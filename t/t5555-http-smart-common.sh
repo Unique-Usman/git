@@ -150,6 +150,34 @@ test_expect_success 'git upload-pack --advertise-refs: v2' '
 	test_cmp actual expect
 '
 
+test_expect_success 'git upload-pack --advertise-refs: v2 with osVersion.command config set' '
+	test_config osVersion.command "uname -srvm" &&
+	printf "agent=FAKE" >agent_and_long_osversion &&
+
+	if test_have_prereq !WINDOWS
+	then
+		printf "\nos-version=%s\n" $(uname -srvm | test_redact_non_printables) >>agent_and_long_osversion
+	fi &&
+
+	cat >expect <<-EOF &&
+	version 2
+	$(cat agent_and_long_osversion)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
+	0000
+	EOF
+
+	GIT_PROTOCOL=version=2 \
+	GIT_USER_AGENT=FAKE \
+	git upload-pack --advertise-refs . >out 2>err &&
+
+	test-tool pkt-line unpack <out >actual &&
+	test_must_be_empty err &&
+	test_cmp actual expect
+'
+
 test_expect_success 'git receive-pack --advertise-refs: v2' '
 	# There is no v2 yet for receive-pack, implicit v0
 	cat >expect <<-EOF &&
