@@ -43,6 +43,41 @@ test_expect_success 'test capability advertisement' '
 	test_cmp expect actual
 '
 
+test_expect_success 'test capability advertisement with osversion.command config set' '
+	# test_config is used here as we are not reusing any file output from here
+	test_config osversion.command "uname -srvm" &&
+	printf "agent=git/$(git version | cut -d" " -f3)" >agent_and_os_name1 &&
+
+	if test_have_prereq !WINDOWS
+	then
+		# Octal intervals \001-\040 and \177-\377
+		# corresponds to decimal intervals 1-32 and 127-255
+		printf "\nos-version=%s\n" $(uname -srvm | tr -d "\n" | tr "[\001-\040][\177-\377]" ".") >>agent_and_os_name1
+	fi &&
+
+	test_oid_cache <<-EOF &&
+	wrong_algo sha1:sha256
+	wrong_algo sha256:sha1
+	EOF
+	cat >expect.base1 <<-EOF &&
+	version 2
+	$(cat agent_and_os_name1)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
+	EOF
+	cat >expect.trailer1 <<-EOF &&
+	0000
+	EOF
+	cat expect.base1 expect.trailer1 >expect1 &&
+
+	GIT_TEST_SIDEBAND_ALL=0 test-tool serve-v2 \
+		--advertise-capabilities >out1 &&
+	test-tool pkt-line unpack <out1 >actual1 &&
+	test_cmp expect1 actual1
+'
+
 test_expect_success 'stateless-rpc flag does not list capabilities' '
 	# Empty request
 	test-tool pkt-line pack >in <<-EOF &&

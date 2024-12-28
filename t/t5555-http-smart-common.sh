@@ -154,6 +154,37 @@ test_expect_success 'git upload-pack --advertise-refs: v2' '
 	test_cmp actual expect
 '
 
+test_expect_success 'git upload-pack --advertise-refs: v2 with osversion.command config set' '
+	# test_config is used here as we are not reusing any file output from here
+	test_config osversion.command "uname -srvm" &&
+	printf "agent=FAKE" >agent_and_os_name1 &&
+
+	if test_have_prereq !WINDOWS
+	then
+		# Octal intervals \001-\040 and \177-\377
+		# corresponds to decimal intervals 1-32 and 127-255
+		printf "\nos-version=%s\n" $(uname -srvm | tr -d "\n" | tr "[\001-\040][\177-\377]" ".") >>agent_and_os_name1
+	fi &&
+
+	cat >expect1 <<-EOF &&
+	version 2
+	$(cat agent_and_os_name1)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
+	0000
+	EOF
+
+	GIT_PROTOCOL=version=2 \
+	GIT_USER_AGENT=FAKE \
+	git upload-pack --advertise-refs . >out1 2>err1 &&
+
+	test-tool pkt-line unpack <out1 >actual1 &&
+	test_must_be_empty err1 &&
+	test_cmp actual1 expect1
+'
+
 test_expect_success 'git receive-pack --advertise-refs: v2' '
 	# There is no v2 yet for receive-pack, implicit v0
 	cat >expect <<-EOF &&
