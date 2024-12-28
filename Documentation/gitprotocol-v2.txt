@@ -203,12 +203,13 @@ in its request to the server (but it MUST NOT do so if the server did
 not advertise the os-version capability). The `X` and `Y` strings may
 contain any printable ASCII characters except space (i.e., the byte
 range 32 < x < 127), and are typically made from the result of
-`uname -s`(OS name e.g Linux). The os-version capability can be disabled
-entirely by setting the `transfer.advertiseOSVersion` config option
-to `false`. The `os-version` strings are purely informative for
-statistics and debugging purposes, and MUST NOT be used to
-programmatically assume the presence or absence of particular
-features.
+`uname -s`(OS name e.g Linux).  If the `osversion.command` is set,
+the `X` and `Y` are made from the ouput of the command specified.
+The os-version capability can be disabled entirely by setting the
+`transfer.advertiseOSVersion` config option to `false`. The `os-version`
+strings are purely informative for statistics and debugging purposes, and
+MUST NOT be used to programmatically assume the presence or absence of
+particular features.
 
 ls-refs
 ~~~~~~~
