@@ -127,7 +127,7 @@ test_expect_success 'git upload-pack --advertise-refs: v2' '
 	if test_have_prereq WINDOWS
 	then
 		# We do not use test_config here so that any tests below can reuse
-		# the 'expect' file from this test
+		# the "expect" file from this test
 		git config transfer.advertiseOSVersion false
 	else
 		# Octal intervals \001-\040 and \177-\377
@@ -138,6 +138,37 @@ test_expect_success 'git upload-pack --advertise-refs: v2' '
 	cat >expect <<-EOF &&
 	version 2
 	$(cat agent_and_os_name)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
+	0000
+	EOF
+
+	GIT_PROTOCOL=version=2 \
+	GIT_USER_AGENT=FAKE \
+	git upload-pack --advertise-refs . >out 2>err &&
+
+	test-tool pkt-line unpack <out >actual &&
+	test_must_be_empty err &&
+	test_cmp actual expect
+'
+
+test_expect_success 'git upload-pack --advertise-refs: v2 with osVersion.command config set' '
+	# test_config is used here as we are not reusing any file output from here
+	test_config osVersion.command "uname -srvm" &&
+	printf "agent=FAKE" >agent_and_long_os_name &&
+
+	if test_have_prereq !WINDOWS
+	then
+		# Octal intervals \001-\040 and \177-\377
+		# corresponds to decimal intervals 1-32 and 127-255
+		printf "\nos-version=%s\n" $(uname -srvm | tr -d "\n" | tr "[\001-\040][\177-\377]" ".") >>agent_and_long_os_name
+	fi &&
+
+	cat >expect <<-EOF &&
+	version 2
+	$(cat agent_and_long_os_name)
 	ls-refs=unborn
 	fetch=shallow wait-for-done
 	server-option

@@ -1,9 +1,13 @@
+#define USE_THE_REPOSITORY_VARIABLE
+
 #include "git-compat-util.h"
 #include "version.h"
 #include "version-def.h"
 #include "strbuf.h"
 #include "gettext.h"
 #include "config.h"
+#include "run-command.h"
+#include "alias.h"
 
 const char git_version_string[] = GIT_VERSION;
 const char git_built_from_commit_string[] = GIT_BUILT_FROM_COMMIT;
@@ -72,6 +76,50 @@ int get_uname_info(struct strbuf *buf, int is_bug_report)
 	return 0;
 }
 
+/*
+ * Return -1 if unable to retrieve the osversion.command config or
+ * if the command is malformed; otherwise, return 0 if successful.
+ */
+static int fill_os_version_command(struct child_process *cmd)
+{
+	const char *os_version_command;
+	const char **argv;
+	char *os_version_copy;
+	int n;
+
+	if (git_config_get_string_tmp("osversion.command", &os_version_command))
+		return -1;
+
+	os_version_copy = xstrdup(os_version_command);
+	n = split_cmdline(os_version_copy, &argv);
+
+	if (n < 0) {
+		warning(_("malformed osversion.command config option: %s, sending os name instead"),
+			_(split_cmdline_strerror(n)));
+		free(os_version_copy);
+		return -1;
+	}
+
+	for (int i = 0; i < n; i++)
+		strvec_push(&cmd->args, argv[i]);
+	free(os_version_copy);
+	free(argv);
+
+	return 0;
+}
+
+static int capture_os_version(struct strbuf *buf)
+{
+	struct child_process cmd = CHILD_PROCESS_INIT;
+
+	if (fill_os_version_command(&cmd))
+		return -1;
+	if (capture_command(&cmd, buf, 0))
+		return -1;
+
+	return 0;
+}
+
 const char *os_version(void)
 {
 	static const char *os = NULL;
@@ -79,7 +127,8 @@ const char *os_version(void)
 	if (!os) {
 		struct strbuf buf = STRBUF_INIT;
 
-		get_uname_info(&buf, 0);
+		if (capture_os_version(&buf))
+			get_uname_info(&buf, 0);
 		os = strbuf_detach(&buf, NULL);
 	}
 
