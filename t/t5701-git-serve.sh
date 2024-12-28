@@ -53,6 +53,35 @@ test_expect_success 'test capability advertisement' '
 	test_cmp expect actual
 '
 
+test_expect_success 'test capability advertisement with osVersion.command config set' '
+	test_config osVersion.command "uname -srvm" &&
+	printf "agent=git/$(git version | cut -d" " -f3)" >agent_and_long_osversion &&
+
+	if test_have_prereq !WINDOWS
+	then
+		printf "\nos-version=%s\n" $(uname -srvm | test_redact_non_printables) >>agent_and_long_osversion
+	fi &&
+
+	test_oid_cache <<-EOF &&
+	wrong_algo sha1:sha256
+	wrong_algo sha256:sha1
+	EOF
+	cat >expect_long.base <<-EOF &&
+	version 2
+	$(cat agent_and_long_osversion)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
+	EOF
+	cat expect_long.base expect.trailer >expect &&
+
+	GIT_TEST_SIDEBAND_ALL=0 test-tool serve-v2 \
+		--advertise-capabilities >out &&
+	test-tool pkt-line unpack <out >actual &&
+	test_cmp expect actual
+'
+
 test_expect_success 'stateless-rpc flag does not list capabilities' '
 	# Empty request
 	test-tool pkt-line pack >in <<-EOF &&
