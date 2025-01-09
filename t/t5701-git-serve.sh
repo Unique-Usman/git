@@ -8,14 +8,13 @@ export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 . ./test-lib.sh
 
 test_expect_success "setup to generate the 'expect' file for use in later tests." '
-	# test capability advertisement
+	# test capability advertisement with uploadpack.advertiseBundleURIs setup
 	printf "agent=git/$(git version | cut -d" " -f3)" >agent_and_os_name &&
 
 	test_oid_cache <<-EOF &&
 	wrong_algo sha1:sha256
 	wrong_algo sha256:sha1
 	EOF
-
 	cat >expect.base <<-EOF &&
 	version 2
 	$(cat agent_and_os_name)
@@ -29,11 +28,38 @@ test_expect_success "setup to generate the 'expect' file for use in later tests.
 	EOF
 
 	test_path_is_file expect.trailer &&
-	test_path_is_file expect.base
+	test_path_is_file expect.base &&
+
+	# test capability advertisement
+	if test_have_prereq WINDOWS
+	then
+		test_config transfer.advertiseOSVersion false
+	else
+		printf "\nos-version=%s\n" $(uname -s | test_redact_non_printables) >>agent_and_os_name
+	fi &&
+
+	cat >expect_advertisement.base <<-EOF &&
+	version 2
+	$(cat agent_and_os_name)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
+	EOF
+	cat >expect_advertisement.trailer <<-EOF &&
+	0000
+	EOF
+
+	test_path_is_file expect_advertisement.trailer &&
+	test_path_is_file expect_advertisement.base
 '
 
 test_expect_success 'test capability advertisement' '
-	cat expect.base expect.trailer >expect &&
+	if test_have_prereq WINDOWS
+	then
+		test_config transfer.advertiseOSVersion false
+	fi &&
+	cat expect_advertisement.base expect_advertisement.trailer >expect &&
 
 	GIT_TEST_SIDEBAND_ALL=0 test-tool serve-v2 \
 		--advertise-capabilities >out &&
@@ -356,6 +382,7 @@ test_expect_success 'basics of object-info' '
 '
 
 test_expect_success 'test capability advertisement with uploadpack.advertiseBundleURIs' '
+	test_config transfer.advertiseOSVersion false &&
 	test_config uploadpack.advertiseBundleURIs true &&
 
 	cat >expect.extra <<-EOF &&
