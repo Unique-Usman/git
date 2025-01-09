@@ -14,7 +14,6 @@ test_expect_success 'setup to generate files with expected content' '
 	wrong_algo sha1:sha256
 	wrong_algo sha256:sha1
 	EOF
-
 	cat >expect.base <<-EOF &&
 	version 2
 	$(cat agent_and_os_name)
@@ -26,10 +25,26 @@ test_expect_success 'setup to generate files with expected content' '
 	cat >expect.trailer <<-EOF &&
 	0000
 	EOF
+
+	if test_have_prereq WINDOWS
+	then
+		git config transfer.advertiseOSVersion false
+	else
+		printf "\nos-version=%s\n" $(uname -s | test_redact_non_printables) >>agent_and_os_name
+	fi &&
+
+	cat >expect_osversion.base <<-EOF
+	version 2
+	$(cat agent_and_os_name)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
+	EOF
 '
 
 test_expect_success 'test capability advertisement' '
-	cat expect.base expect.trailer >expect &&
+	cat expect_osversion.base expect.trailer >expect &&
 
 	GIT_TEST_SIDEBAND_ALL=0 test-tool serve-v2 \
 		--advertise-capabilities >out &&
@@ -357,7 +372,7 @@ test_expect_success 'test capability advertisement with uploadpack.advertiseBund
 	cat >expect.extra <<-EOF &&
 	bundle-uri
 	EOF
-	cat expect.base \
+	cat expect_osversion.base \
 	    expect.extra \
 	    expect.trailer >expect &&
 
