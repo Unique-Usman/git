@@ -8,7 +8,7 @@ export GIT_TEST_DEFAULT_INITIAL_BRANCH_NAME
 . ./test-lib.sh
 
 test_expect_success 'setup to generate files with expected content' '
-	printf "agent=git/%s\n" "$(git version | cut -d" " -f3)" >agent_capability &&
+	printf "agent=git/%s" "$(git version | cut -d" " -f3)" >agent_capability &&
 
 	test_oid_cache <<-EOF &&
 	wrong_algo sha1:sha256
@@ -23,13 +23,29 @@ test_expect_success 'setup to generate files with expected content' '
 	server-option
 	object-format=$(test_oid algo)
 	EOF
-	cat >expect.trailer <<-EOF
+	cat >expect.trailer <<-EOF &&
 	0000
+	EOF
+
+	if test_have_prereq WINDOWS
+	then
+		printf "\n" >>agent_capability &&
+		git config transfer.advertiseOSInfo false
+	else
+		printf " %s\n" $(uname -s | test_redact_non_printables) >>agent_capability
+	fi &&
+	cat >expect_agent_osname.base <<-EOF
+	version 2
+	$(cat agent_capability)
+	ls-refs=unborn
+	fetch=shallow wait-for-done
+	server-option
+	object-format=$(test_oid algo)
 	EOF
 '
 
 test_expect_success 'test capability advertisement' '
-	cat expect.base expect.trailer >expect &&
+	cat expect_agent_osname.base expect.trailer >expect &&
 
 	GIT_TEST_SIDEBAND_ALL=0 test-tool serve-v2 \
 		--advertise-capabilities >out &&
@@ -357,7 +373,7 @@ test_expect_success 'test capability advertisement with uploadpack.advertiseBund
 	cat >expect.extra <<-EOF &&
 	bundle-uri
 	EOF
-	cat expect.base \
+	cat expect_agent_osname.base \
 	    expect.extra \
 	    expect.trailer >expect &&
 
