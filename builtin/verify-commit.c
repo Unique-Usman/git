@@ -64,8 +64,6 @@ int cmd_verify_commit(int argc,
 		OPT_END()
 	};
 
-	git_config(git_default_config, NULL);
-
 	argc = parse_options(argc, argv, prefix, verify_commit_options,
 			     verify_commit_usage, PARSE_OPT_KEEP_ARGV0);
 	if (argc <= i)
@@ -73,6 +71,8 @@ int cmd_verify_commit(int argc,
 
 	if (verbose)
 		flags |= GPG_VERIFY_VERBOSE;
+
+	git_config(git_default_config, NULL);
 
 	/* sometimes the program was terminated because this signal
 	 * was received in the process of writing the gpg input: */
