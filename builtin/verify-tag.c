@@ -35,8 +35,6 @@ int cmd_verify_tag(int argc,
 		OPT_END()
 	};
 
-	git_config(git_default_config, NULL);
-
 	argc = parse_options(argc, argv, prefix, verify_tag_options,
 			     verify_tag_usage, PARSE_OPT_KEEP_ARGV0);
 	if (argc <= i)
@@ -51,6 +49,8 @@ int cmd_verify_tag(int argc,
 					   verify_tag_options);
 		flags |= GPG_VERIFY_OMIT_STATUS;
 	}
+
+	git_config(git_default_config, NULL);
 
 	while (i < argc) {
 		struct object_id oid;
