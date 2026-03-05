@@ -551,12 +551,13 @@ int cmd_push(int argc,
 	int flags = 0;
 	int tags = 0;
 	int push_cert = -1;
-	int rc;
+	int rc = 0;
 	const char *repo = NULL;	/* default repository */
 	struct string_list push_options_cmdline = STRING_LIST_INIT_DUP;
+	struct string_list remote_group = STRING_LIST_INIT_DUP; /* represent remote or remote group */
 	struct string_list *push_options;
 	const struct string_list_item *item;
-	struct remote *remote;
+	struct remote *remote = NULL;
 
 	struct option options[] = {
 		OPT__VERBOSITY(&verbosity),
@@ -625,25 +626,35 @@ int cmd_push(int argc,
 	if (argc > 0)
 		repo = argv[0];
 
-	remote = pushremote_get(repo);
-	if (!remote) {
-		if (repo)
-			die(_("bad repository '%s'"), repo);
-		die(_("No configured push destination.\n"
-		    "Either specify the URL from the command-line or configure a remote repository using\n"
-		    "\n"
-		    "    git remote add <name> <url>\n"
-		    "\n"
-		    "and then push using the remote name\n"
-		    "\n"
-		    "    git push <name>\n"));
+	if (repo) {
+		if (!add_remote_or_group(repo, &remote_group))
+			die(_("no such remote or remote group: %s"), repo);
+	} else {
+		remote = pushremote_get(NULL);
+		if (!remote)
+			die(_("No configured push destination.\n"
+			    "Either specify the URL from the command-line or configure a remote repository using\n"
+			    "\n"
+			    "    git remote add <name> <url>\n"
+			    "\n"
+			    "and then push using the remote name\n"
+			    "\n"
+			    "    git push <name>\n"));
 	}
 
-	if (argc > 0)
-		set_refspecs(argv + 1, argc - 1, remote);
+	/*
+	 * set_refspecs and mirror detection must not use `remote`
+	 * when it may be NULL (group path). For the single-remote case,
+	 * handle them here. For the group case they are handled
+	 * per-remote inside the loop below.
+	 */
+	if (remote) {
+		if (argc > 0)
+			set_refspecs(argv + 1, argc - 1, remote);
 
-	if (remote->mirror)
-		flags |= (TRANSPORT_PUSH_MIRROR|TRANSPORT_PUSH_FORCE);
+		if (remote->mirror)
+			flags |= (TRANSPORT_PUSH_MIRROR|TRANSPORT_PUSH_FORCE);
+	}
 
 	if (flags & TRANSPORT_PUSH_ALL) {
 		if (argc >= 2)
@@ -661,10 +672,50 @@ int cmd_push(int argc,
 		if (strchr(item->string, '\n'))
 			die(_("push options must not have new line characters"));
 
-	rc = do_push(flags, push_options, remote);
+	if (remote) {
+		rc = do_push(flags, push_options, remote);
+	} else {
+		int base_flags = flags;
+		for (int i = 0; i < remote_group.nr; i++) {
+			int iter_flags = base_flags;
+			struct remote *r = pushremote_get(remote_group.items[i].string);
+			if (!r)
+				die(_("no such remote or remote group: %s"),
+				    remote_group.items[i].string);
+
+			/*
+			 * Rebuild rs from scratch for each remote so that
+			 * push mappings (remote.NAME.push config) are resolved
+			 * against this specific remote. Without this, mappings
+			 * from a previous iteration would accumulate in rs and
+			 * each remote would be pushed an ever-growing refspec list.
+			 */
+			refspec_clear(&rs);
+			rs = (struct refspec) REFSPEC_INIT_PUSH;
+
+			if (tags)
+				refspec_append(&rs, "refs/tags/*");
+			if (argc > 0)
+				set_refspecs(argv + 1, argc - 1, r);
+
+			/*
+			 * Compute mirror flag from a fresh base each iteration
+			 * so that a mirror remote does not bleed TRANSPORT_PUSH_FORCE
+			 * into subsequent non-mirror remotes in the same group.
+			 */
+			if (r->mirror)
+				iter_flags |= (TRANSPORT_PUSH_MIRROR|TRANSPORT_PUSH_FORCE);
+
+			rc |= do_push(iter_flags, push_options, r);
+		}
+	}
+
+
 	string_list_clear(&push_options_cmdline, 0);
 	string_list_clear(&push_options_config, 0);
+	string_list_clear(&remote_group, 0);
 	clear_cas_option(&cas);
+
 	if (rc == -1)
 		usage_with_options(push_usage, options);
 	else
